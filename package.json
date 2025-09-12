@@ -10,6 +10,7 @@
     "db:studio": "npx drizzle-kit studio"
   },
   "dependencies": {
+    "lightningcss": "1.24.0",
     "@clerk/nextjs": "^6.31.9",
     "@google/generative-ai": "^0.24.1",
     "@neondatabase/serverless": "^1.0.1",
