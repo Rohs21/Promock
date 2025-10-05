@@ -1,4 +1,5 @@
 # 🧠 ProMock – Your AI-Powered Interview Preparation Partner
+<img width="1911" height="972" alt="image" src="https://github.com/user-attachments/assets/9764a841-e447-40c1-b47a-159331282e91" />
 
 ProMock is an intelligent web application built for **AI-based interview preparation**. It allows users to experience **real-time mock interviews** — complete with **AI-generated questions, answers, and feedback** — helping them get ready for real-world interviews with confidence.  
 
