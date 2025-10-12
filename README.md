@@ -39,13 +39,7 @@ Follow these steps to run **ProMock** locally:
 ### 1. Clone the repository
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
