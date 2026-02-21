@@ -25,6 +25,11 @@ function InterviewList() {
         setInterviewList(result);
     }
 
+    const handleDeleteInterview = () => {
+        // Refresh the list after deletion
+        GetInterviewList();
+    }
+
     return (
         <div className="space-y-4">
             <h2 className='font-medium text-xl'>Previous Mock Interview</h2>
@@ -33,7 +38,8 @@ function InterviewList() {
                 {interviewList?.length > 0 ? interviewList.map((interview, index) => (
                     <InterviewItemCard 
                         interview={interview}
-                        key={interview.mockId || index} 
+                        key={interview.mockId || index}
+                        onDelete={handleDeleteInterview}
                     />
                 ))
                 :

@@ -1,11 +1,17 @@
 import { Button } from '@/components/ui/button'
 import { useRouter } from 'next/navigation'
 import React, { useState } from 'react'
+import { Trash2 } from 'lucide-react'
+import { db } from '@/utils/db'
+import { MockInterview, UserAnswer } from '@/utils/schema'
+import { eq } from 'drizzle-orm'
+import { toast } from 'sonner'
 
-function InterviewItemCard({interview}) {
+function InterviewItemCard({interview, onDelete}) {
 
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     const onStart = () => {
         setIsLoading(true);
@@ -23,10 +29,48 @@ function InterviewItemCard({interview}) {
         }, 100);
     }
 
+    const handleDelete = async (e) => {
+        e.stopPropagation();
+        if (isDeleting) return;
+        
+        if (!confirm('Are you sure you want to delete this interview? This will also delete all related answers and feedback.')) {
+            return;
+        }
+        
+        setIsDeleting(true);
+        try {
+            // Delete related user answers first
+            await db.delete(UserAnswer)
+                .where(eq(UserAnswer.mockIdRef, interview?.mockId));
+            
+            // Delete the interview
+            await db.delete(MockInterview)
+                .where(eq(MockInterview.mockId, interview?.mockId));
+            
+            toast('Interview deleted successfully');
+            if (onDelete) onDelete();
+        } catch (error) {
+            console.error('Error deleting interview:', error);
+            toast('Failed to delete interview');
+        } finally {
+            setIsDeleting(false);
+        }
+    }
+
     return (
         <>
-            <div className='border shadow-sm rounded-lg p-4 bg-white hover:shadow-md transition-shadow duration-200 h-full flex flex-col'>
-                <div className='flex-1 space-y-2'>
+            <div className='border shadow-sm rounded-lg p-4 bg-white hover:shadow-md transition-shadow duration-200 h-full flex flex-col relative'>
+                {/* Delete Button */}
+                <button
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    className='absolute top-2 right-2 p-1.5 rounded-full hover:bg-red-100 transition-colors group'
+                    title='Delete Interview'
+                >
+                    <Trash2 className={`w-4 h-4 ${isDeleting ? 'text-gray-400 animate-pulse' : 'text-gray-400 group-hover:text-red-500'}`} />
+                </button>
+                
+                <div className='flex-1 space-y-2 pr-6'>
                     <h2 className='font-bold text-primary text-lg leading-tight'>{interview?.jobPosition}</h2>
                     <h2 className='text-sm text-gray-600'>{interview?.jobExperience} Years of Experience</h2>
                     <h2 className='text-xs text-gray-400'>Created At: {interview?.createdAt}</h2>
