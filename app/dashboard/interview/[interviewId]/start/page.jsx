@@ -34,8 +34,25 @@ function StartInterview({ params }) {
                 .where(eq(MockInterview.mockId, unwrappedParams.interviewId));
 
             if (result.length > 0) {
-                const jsonMockResp = JSON.parse(result[0].jsonMockResp);
-                // Ensure jsonMockResp is an array
+                let jsonMockResp = JSON.parse(result[0].jsonMockResp);
+                
+                // Handle if AI returned an object wrapper instead of array
+                if (!Array.isArray(jsonMockResp) && typeof jsonMockResp === 'object') {
+                    // Try to extract array from common wrapper keys
+                    const possibleKeys = ['questions', 'interview_questions', 'interviewQuestions', 'data'];
+                    for (const key of possibleKeys) {
+                        if (Array.isArray(jsonMockResp[key])) {
+                            jsonMockResp = jsonMockResp[key];
+                            break;
+                        }
+                    }
+                    // If still not an array, try the first array property found
+                    if (!Array.isArray(jsonMockResp)) {
+                        const arrayProp = Object.values(jsonMockResp).find(v => Array.isArray(v));
+                        if (arrayProp) jsonMockResp = arrayProp;
+                    }
+                }
+                
                 if (Array.isArray(jsonMockResp)) {
                     setMockInterviewQuestion(jsonMockResp);
                 } else {
@@ -69,17 +86,8 @@ function StartInterview({ params }) {
                     mockInterviewQuestion={mockInterviewQuestion}
                     activeQuestionIndex={activeQuestionIndex}
                     interviewData={interviewData}
+                    setActiveQuestionIndex={setActiveQuestionIndex}
                 />
-            </div>
-            <div className='flex justify-end gap-6'>
-                {activeQuestionIndex > 0 &&
-                    <Button onClick={() => setActiveQuestionIndex(activeQuestionIndex - 1)}>Previous Question</Button>}
-                {activeQuestionIndex !== mockInterviewQuestion?.length - 1 &&
-                    <Button onClick={() => setActiveQuestionIndex(activeQuestionIndex + 1)}>Next Question</Button>}
-                {activeQuestionIndex === mockInterviewQuestion?.length - 1 &&
-                    <Link href={`/dashboard/interview/${interviewData?.mockId}/feedback`}>
-                        <Button>End Interview</Button>
-                    </Link>}
             </div>
         </div>
     )

@@ -34,7 +34,7 @@ const onSubmit = async (e) => {
   e.preventDefault();
   console.log(jobPosition, jobDesc, jobExperience);
 
-  const InputPrompt = "Job position: " + jobPosition + ", Job Description: " + jobDesc + ", Years of Experience : " + jobExperience + " , Depends on Job Position, Job Description & Years of Experience give us " + process.env.NEXT_PUBLIC_INTERVIEW_QUESTION_COUNT + " Interview question along with Answer in JSON format, Give us question and answer field on JSON";
+  const InputPrompt = "Job position: " + jobPosition + ", Job Description: " + jobDesc + ", Years of Experience: " + jobExperience + ". Based on the Job Position, Job Description & Years of Experience, generate exactly " + process.env.NEXT_PUBLIC_INTERVIEW_QUESTION_COUNT + " interview questions with answers. Return ONLY a valid JSON array (no markdown, no explanation) in this exact format: [{\"question\": \"your question here\", \"answer\": \"your answer here\"}]";
 
   let result;
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -51,15 +51,47 @@ const onSubmit = async (e) => {
     }
   }
 
-  const MockJsonResp = (result.response.text()).replace('```json', '').replace('```', '');
-  console.log(JSON.parse(MockJsonResp));
-  setJsonResponse(MockJsonResp);
+  let MockJsonResp = result.response.text();
+  // Clean up markdown code blocks and whitespace
+  MockJsonResp = MockJsonResp.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+  
+  // Parse and validate the response
+  let parsedQuestions = JSON.parse(MockJsonResp);
+  
+  // Handle if AI returned an object wrapper instead of array
+  if (!Array.isArray(parsedQuestions) && typeof parsedQuestions === 'object') {
+    const possibleKeys = ['questions', 'interview_questions', 'interviewQuestions', 'data'];
+    for (const key of possibleKeys) {
+      if (Array.isArray(parsedQuestions[key])) {
+        parsedQuestions = parsedQuestions[key];
+        break;
+      }
+    }
+    // If still not an array, try the first array property found
+    if (!Array.isArray(parsedQuestions)) {
+      const arrayProp = Object.values(parsedQuestions).find(v => Array.isArray(v));
+      if (arrayProp) parsedQuestions = arrayProp;
+    }
+  }
+  
+  // Ensure we have an array with questions
+  if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
+    console.error("Invalid response from AI:", MockJsonResp);
+    alert("Failed to generate questions. Please try again.");
+    setLoading(false);
+    return;
+  }
+  
+  // Store as clean JSON array
+  const cleanJsonResp = JSON.stringify(parsedQuestions);
+  console.log("Parsed questions:", parsedQuestions);
+  setJsonResponse(cleanJsonResp);
 
-  if (MockJsonResp) {
+  if (cleanJsonResp) {
     const resp = await db.insert(MockInterview)
       .values({
         mockId: uuidv4(),
-        jsonMockResp: MockJsonResp,
+        jsonMockResp: cleanJsonResp,
         jobPosition: jobPosition,
         jobDesc: jobDesc,
         jobExperience: jobExperience,

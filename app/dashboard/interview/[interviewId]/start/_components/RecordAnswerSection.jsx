@@ -11,11 +11,13 @@ import { db } from '@/utils/db'
 import { UserAnswer } from '@/utils/schema'
 import { useUser } from '@clerk/nextjs'
 import moment from 'moment'
+import Link from 'next/link'
 
-function RecordAnswerSection({mockInterviewQuestion,activeQuestionIndex,interviewData}) {
+function RecordAnswerSection({mockInterviewQuestion,activeQuestionIndex,interviewData,setActiveQuestionIndex}) {
     const [userAnswer,setUserAnswer]=useState('');
     const {user}=useUser();
     const [loading,setLoading]=useState(false);
+    const [isProcessing, setIsProcessing] = useState(false);
     const {
         error,
         interimResult,
@@ -26,7 +28,7 @@ function RecordAnswerSection({mockInterviewQuestion,activeQuestionIndex,intervie
         setResults
    
       } = useSpeechToText({
-        continuous:false,
+        continuous: true,
         useLegacyResults: false
       });
 
@@ -39,11 +41,12 @@ function RecordAnswerSection({mockInterviewQuestion,activeQuestionIndex,intervie
       },[results])
 
       useEffect(()=>{
-        if(!isRecording&&userAnswer?.length>10)
+        // Only trigger when recording stops and we have enough content
+        if(!isRecording && userAnswer?.length > 10 && !isProcessing)
         {
           UpdateUserAnswer();
         } 
-      },[userAnswer])
+      },[isRecording])
          
       const StartStopRecording=async()=>{
         if(isRecording)
@@ -56,6 +59,9 @@ function RecordAnswerSection({mockInterviewQuestion,activeQuestionIndex,intervie
       }
 
       const UpdateUserAnswer=async()=>{
+        // Prevent multiple concurrent calls
+        if(isProcessing) return;
+        setIsProcessing(true);
 
         console.log(userAnswer)
         setLoading(true)
@@ -64,8 +70,25 @@ function RecordAnswerSection({mockInterviewQuestion,activeQuestionIndex,intervie
         " please give us rating for answer and feedback as area of improvmenet if any "+
         "in just 3 to 5 lines to improve it in JSON format with rating field and feedback field";
 
-        const result=await chatSession.sendMessage(feedbackPrompt);
-        const mockJsonResp=(result.response.text()).replace('```json','').replace('```','');
+        let result;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            result = await chatSession.sendMessage(feedbackPrompt);
+            break; // Success, exit loop
+          } catch (error) {
+            if (error.message.includes("503") && attempt < 2) {
+              await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1))); // Wait 2s, 4s, etc.
+              continue; // Retry
+            } else {
+              toast('AI service is busy. Please try again later.');
+              setLoading(false);
+              setIsProcessing(false);
+              return;
+            }
+          }
+        }
+
+        let mockJsonResp = result.response.text().replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
         const JsonFeedbackResp=JSON.parse(mockJsonResp);
         const resp=await db.insert(UserAnswer)
         .values({
@@ -87,7 +110,8 @@ function RecordAnswerSection({mockInterviewQuestion,activeQuestionIndex,intervie
         }
         setResults([]);
         
-          setLoading(false);
+        setLoading(false);
+        setIsProcessing(false);
       }
 
 
@@ -105,21 +129,51 @@ function RecordAnswerSection({mockInterviewQuestion,activeQuestionIndex,intervie
             }}
             />
         </div>
-        <Button 
-        disabled={loading}
-        variant="outline" className="my-10"
-        onClick={StartStopRecording}
-        >
-            {isRecording?
-            <h2 className='text-red-600 animate-pulse flex gap-2 items-center'>
-                <StopCircle/>Stop Recording
-            </h2>
-            :
+        {loading && <p className='text-sm text-gray-500 animate-pulse'>Processing your answer...</p>}
+        
+        <div className='flex items-center gap-4 my-10'>
+            {activeQuestionIndex > 0 && (
+                <Button
+                    variant="outline"
+                    className="hover:bg-blue-100 hover:border-blue-400 hover:text-blue-600 transition-all"
+                    onClick={() => setActiveQuestionIndex(activeQuestionIndex - 1)}
+                >
+                    Previous Question
+                </Button>
+            )}
             
-            <h2 className='text-primary flex gap-2 items-center'>
-              <Mic/>  Record Answer</h2> }</Button>
-      
-     
+            <Button 
+                variant="outline" 
+                className={isRecording ? 'bg-red-50 border-red-300 hover:bg-red-100' : 'hover:bg-blue-100 hover:border-blue-400 hover:text-blue-600 transition-all'}
+                onClick={StartStopRecording}
+            >
+                {isRecording?
+                    <h2 className='text-red-600 animate-pulse flex gap-2 items-center'>
+                        <StopCircle/>Stop Recording
+                    </h2>
+                    :
+                    <h2 className='text-primary flex gap-2 items-center'>
+                        <Mic/> Record Answer
+                    </h2>
+                }
+            </Button>
+            
+            {activeQuestionIndex !== mockInterviewQuestion?.length - 1 ? (
+                <Button
+                    variant="outline"
+                    className="hover:bg-blue-100 hover:border-blue-400 hover:text-blue-600 transition-all"
+                    onClick={() => setActiveQuestionIndex(activeQuestionIndex + 1)}
+                >
+                    Next Question
+                </Button>
+            ) : (
+                <Link href={`/dashboard/interview/${interviewData?.mockId}/feedback`}>
+                    <Button className="bg-green-600 hover:bg-green-700 transition-all">
+                        End Interview
+                    </Button>
+                </Link>
+            )}
+        </div>
     </div>
   )
 }
